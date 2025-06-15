@@ -1,0 +1,51 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+PROJE KURALLARI
+1. BACKEND KURALLARI
+Framework: FastAPI kullan
+Veritabanı: SQLite + SQLAlchemy
+Dosya Yapısı:
+models.py: Veritabanı modelleri
+schemas.py: Pydantic şemaları
+routes/: Endpoint'ler modül modül
+main.py: Ana uygulama
+database.py: DB yapılandırması
+API Yapısı: RESTful (GET, POST, PUT, DELETE)
+CORS: Tüm originlere açık (geliştirme için)
+2. FRONTEND KURALLARI
+Framework: React
+UI Kütüphanesi: Material-UI (@mui)
+HTTP İstekleri: Axios
+Routing: React Router
+Dosya Yapısı:
+components/: Yeniden kullanılabilir bileşenler
+pages/: Sayfa bileşenleri
+App.js: Ana routing ve tema
+3. TASARIM KURALLARI
+Renk Paleti:
+Ana renk: #607afb
+Arka plan: #f8f9fc
+Metin: #0d0f1c
+İkinci metin: #47569e
+Layout: Sidebar + ana içerik alanı
+Dil: Türkçe (tarih/para formatları dahil)
+Font: Inter, "Noto Sans"
+4. GELİŞTİRME KURALLARI
+Yalınlık: Mümkün olduğunca basit tut
+Modülerlik: Her özellik ayrı dosyada
+Demo Veriler: Backend bağlantısı yoksa demo göster
+Error Handling: Console'da hata logla
+Responsive: Mobil uyumlu tasarım
+5. MEVCUT YAPIMIZ
+✅ Cari Hesap: Tam fonksiyonel (CRUD işlemleri)
+⏳ Kasa Takibi: Boş sayfa
+⏳ Stok Takibi: Boş sayfa
+✅ Navigation: Sidebar menü
+✅ Layout: Ana yapı
+6. PAKET KURALLARI
+Python: 3.13 uyumlu versiyonlar
+React: En güncel kararlı versiyonlar
+Sabit Sürümler: Yerine >= kullan
