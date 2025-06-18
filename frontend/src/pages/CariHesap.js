@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,9 +25,11 @@ import {
   Tooltip,
   Grid,
   Card,
-  CardContent
+  CardContent,
+  Collapse,
+  Badge
 } from '@mui/material';
-import { Edit, Delete, Visibility, Home } from '@mui/icons-material';
+import { Edit, Delete, Visibility, Home, FilterList, Clear, ExpandMore, ExpandLess } from '@mui/icons-material';
 import axios from 'axios';
 
 const CariHesap = () => {
@@ -38,13 +40,25 @@ const CariHesap = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     hesap_adi: '',
-    tipi: 'Müşteri',
+    tipi: 'Tedarikçi',
     telefon: '',
     email: '',
     adres: '',
     vergi_no: '',
     durum: 'Aktif'
   });
+
+  // Filtre state'leri
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    hesap_adi: '',
+    min_bakiye: '',
+    max_bakiye: '',
+    start_date: '',
+    end_date: '',
+    durum: ''
+  });
+  const [filteredCariHesaplar, setFilteredCariHesaplar] = useState([]);
 
   useEffect(() => {
     fetchCariHesaplar();
@@ -147,7 +161,7 @@ const CariHesap = () => {
     setEditingId(null);
     setFormData({
       hesap_adi: '',
-      tipi: 'Müşteri',
+      tipi: 'Tedarikçi',
       telefon: '',
       email: '',
       adres: '',
@@ -169,6 +183,71 @@ const CariHesap = () => {
     if (bakiye < 0) return 'error.main';
     return 'text.secondary';
   };
+
+  // Filtre fonksiyonları
+  const applyFilters = useCallback(() => {
+    let filtered = [...cariHesaplar];
+
+    // Hesap adı filtresi
+    if (filters.hesap_adi.trim()) {
+      const searchTerm = filters.hesap_adi.toLowerCase().trim();
+      filtered = filtered.filter(h => 
+        h.hesap_adi.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Bakiye filtresi
+    if (filters.min_bakiye) {
+      filtered = filtered.filter(h => h.bakiye >= parseFloat(filters.min_bakiye));
+    }
+    if (filters.max_bakiye) {
+      filtered = filtered.filter(h => h.bakiye <= parseFloat(filters.max_bakiye));
+    }
+
+    // Son hareket tarihi filtresi
+    if (filters.start_date) {
+      filtered = filtered.filter(h => 
+        new Date(h.son_hareket_tarihi) >= new Date(filters.start_date)
+      );
+    }
+    if (filters.end_date) {
+      filtered = filtered.filter(h => 
+        new Date(h.son_hareket_tarihi) <= new Date(filters.end_date)
+      );
+    }
+
+    // Durum filtresi
+    if (filters.durum) {
+      filtered = filtered.filter(h => h.durum === filters.durum);
+    }
+
+    setFilteredCariHesaplar(filtered);
+  }, [cariHesaplar, filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      hesap_adi: '',
+      min_bakiye: '',
+      max_bakiye: '',
+      start_date: '',
+      end_date: '',
+      durum: ''
+    });
+    setFilteredCariHesaplar(cariHesaplar);
+  };
+
+  const getActiveFilterCount = () => {
+    return Object.values(filters).filter(value => value && value.toString().trim()).length;
+  };
+
+  // useEffect'ler
+  useEffect(() => {
+    if (cariHesaplar.length > 0) {
+      applyFilters();
+    } else {
+      setFilteredCariHesaplar([]);
+    }
+  }, [cariHesaplar, filters, applyFilters]);
 
   return (
     <Box sx={{ p: 4 }}>
@@ -221,10 +300,10 @@ const CariHesap = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Müşteri Sayısı
+                Aktif Hesaplar
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                {cariHesaplar.filter(h => h.tipi === 'Müşteri').length}
+                {cariHesaplar.filter(h => h.durum === 'Aktif').length}
               </Typography>
             </CardContent>
           </Card>
@@ -233,10 +312,10 @@ const CariHesap = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Tedarikçi Sayısı
+                Pasif Hesaplar
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>
-                {cariHesaplar.filter(h => h.tipi === 'Tedarikçi').length}
+                {cariHesaplar.filter(h => h.durum === 'Pasif').length}
               </Typography>
             </CardContent>
           </Card>
@@ -247,7 +326,10 @@ const CariHesap = () => {
               <Typography color="textSecondary" gutterBottom>
                 Toplam Bakiye
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 'bold', 
+                color: getBakiyeColor(cariHesaplar.reduce((sum, h) => sum + (h.bakiye || 0), 0))
+              }}>
                 {formatBakiye(cariHesaplar.reduce((sum, h) => sum + (h.bakiye || 0), 0))}
               </Typography>
             </CardContent>
@@ -255,11 +337,47 @@ const CariHesap = () => {
         </Grid>
       </Grid>
 
-      {/* Tablo Başlığı ve Buton */}
+      {/* Tablo Başlığı ve Butonlar */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0d0f1c' }}>
-          Cari Hesap Listesi
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0d0f1c' }}>
+            Cari Hesap Listesi
+          </Typography>
+          <Badge badgeContent={getActiveFilterCount()} color="primary">
+            <Button
+              variant="outlined"
+              startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+              endIcon={<FilterList />}
+              onClick={() => setShowFilters(!showFilters)}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'bold',
+                color: '#607afb',
+                borderColor: '#607afb',
+                '&:hover': {
+                  bgcolor: '#607afb',
+                  color: 'white'
+                }
+              }}
+            >
+              Filtreler
+            </Button>
+          </Badge>
+          {getActiveFilterCount() > 0 && (
+            <Button
+              variant="text"
+              startIcon={<Clear />}
+              onClick={clearFilters}
+              sx={{
+                textTransform: 'none',
+                color: '#f44336',
+                '&:hover': { bgcolor: '#ffebee' }
+              }}
+            >
+              Temizle ({filteredCariHesaplar.length}/{cariHesaplar.length})
+            </Button>
+          )}
+        </Box>
         <Button
           variant="contained"
           onClick={() => setOpen(true)}
@@ -273,6 +391,107 @@ const CariHesap = () => {
           Yeni Cari Hesap Ekle
         </Button>
       </Box>
+
+      {/* Filtre Paneli */}
+      <Collapse in={showFilters}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#f8f9fc', border: '1px solid #ced2e9' }}>
+          <Grid container spacing={2}>
+            {/* Hesap Adı Arama */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                🔍 Hesap Adı Arama
+              </Typography>
+              <TextField
+                label="Hesap adı ara..."
+                size="small"
+                value={filters.hesap_adi}
+                onChange={(e) => setFilters({ ...filters, hesap_adi: e.target.value })}
+                fullWidth
+                placeholder="Hesap adı girin..."
+              />
+            </Grid>
+
+            {/* Bakiye Aralığı */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                💰 Bakiye Aralığı
+              </Typography>
+              <TextField
+                label="Min Bakiye"
+                type="number"
+                size="small"
+                value={filters.min_bakiye}
+                onChange={(e) => setFilters({ ...filters, min_bakiye: e.target.value })}
+                fullWidth
+                inputProps={{ step: 0.01 }}
+                sx={{ mb: 1 }}
+              />
+              <TextField
+                label="Max Bakiye"
+                type="number"
+                size="small"
+                value={filters.max_bakiye}
+                onChange={(e) => setFilters({ ...filters, max_bakiye: e.target.value })}
+                fullWidth
+                inputProps={{ step: 0.01 }}
+              />
+            </Grid>
+
+            {/* Son Hareket Tarihi */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                📅 Son Hareket Tarihi
+              </Typography>
+              <TextField
+                label="Başlangıç"
+                type="date"
+                size="small"
+                value={filters.start_date}
+                onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                sx={{ mb: 1 }}
+              />
+              <TextField
+                label="Bitiş"
+                type="date"
+                size="small"
+                value={filters.end_date}
+                onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/* Durum */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                📊 Hesap Durumu
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Durum Seçin</InputLabel>
+                <Select
+                  value={filters.durum}
+                  onChange={(e) => setFilters({ ...filters, durum: e.target.value })}
+                  label="Durum Seçin"
+                >
+                  <MenuItem value="">Hepsi</MenuItem>
+                  <MenuItem value="Aktif">✅ Aktif</MenuItem>
+                  <MenuItem value="Pasif">⏸️ Pasif</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          {/* Filtre İstatistikleri */}
+          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #ced2e9' }}>
+            <Typography variant="body2" color="textSecondary">
+              📊 Toplam {cariHesaplar.length} hesaptan {filteredCariHesaplar.length} tanesi gösteriliyor
+              {getActiveFilterCount() > 0 && ` (${getActiveFilterCount()} filtre aktif)`}
+            </Typography>
+          </Box>
+        </Paper>
+      </Collapse>
 
       {/* Tablo */}
       <TableContainer component={Paper} sx={{ border: '1px solid #ced2e9' }}>
@@ -290,7 +509,7 @@ const CariHesap = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {cariHesaplar.map((hesap) => (
+            {filteredCariHesaplar.map((hesap) => (
               <TableRow key={hesap.id} sx={{ '&:hover': { bgcolor: '#f5f5f5' } }}>
                 <TableCell 
                   sx={{ 
@@ -308,8 +527,8 @@ const CariHesap = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={hesap.tipi}
-                    color={hesap.tipi === 'Müşteri' ? 'primary' : 'secondary'}
+                    label="Tedarikçi/Müşteri"
+                    color="primary"
                     variant="outlined"
                     size="small"
                   />
@@ -344,6 +563,31 @@ const CariHesap = () => {
                 </TableCell>
               </TableRow>
             ))}
+            {filteredCariHesaplar.length === 0 && cariHesaplar.length > 0 && (
+              <TableRow>
+                <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body1" color="textSecondary">
+                    🔍 Filtre kriterlerinize uygun cari hesap bulunamadı
+                  </Typography>
+                  <Button 
+                    variant="text" 
+                    onClick={clearFilters}
+                    sx={{ mt: 1, color: '#607afb' }}
+                  >
+                    Filtreleri Temizle
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )}
+            {cariHesaplar.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body1" color="textSecondary">
+                    👤 Henüz cari hesap kaydı bulunmuyor
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -365,17 +609,12 @@ const CariHesap = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Tipi *</InputLabel>
-                <Select
-                  value={formData.tipi}
-                  onChange={(e) => setFormData({ ...formData, tipi: e.target.value })}
-                  label="Tipi *"
-                >
-                  <MenuItem value="Müşteri">Müşteri</MenuItem>
-                  <MenuItem value="Tedarikçi">Tedarikçi</MenuItem>
-                </Select>
-              </FormControl>
+              <TextField
+                label="Vergi No"
+                value={formData.vergi_no}
+                onChange={(e) => setFormData({ ...formData, vergi_no: e.target.value })}
+                fullWidth
+              />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -392,14 +631,6 @@ const CariHesap = () => {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 fullWidth
                 type="email"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Vergi No"
-                value={formData.vergi_no}
-                onChange={(e) => setFormData({ ...formData, vergi_no: e.target.value })}
-                fullWidth
               />
             </Grid>
             <Grid item xs={12} sm={6}>

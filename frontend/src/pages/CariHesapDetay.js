@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -34,9 +34,11 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
-  Autocomplete
+  Autocomplete,
+  Collapse,
+  Badge
 } from '@mui/material';
-import { ArrowBack, Add, Delete, TrendingUp, TrendingDown } from '@mui/icons-material';
+import { ArrowBack, Add, Delete, TrendingUp, TrendingDown, FilterList, Clear, ExpandMore, ExpandLess } from '@mui/icons-material';
 import axios from 'axios';
 
 const CariHesapDetay = () => {
@@ -46,12 +48,11 @@ const CariHesapDetay = () => {
   const [hesapBilgi, setHesapBilgi] = useState(null);
   const [hareketler, setHareketler] = useState([]);
   const [urunler, setUrunler] = useState([]); // Satış için ürün listesi
-  const [open, setOpen] = useState(false);
+  const [openBorc, setOpenBorc] = useState(false);
+  const [openAlacak, setOpenAlacak] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    hareket_tipi: 'Borç',
+  const [borcFormData, setBorcFormData] = useState({
     tutar: '',
-    odeme_tipi: 'Satın Alma', // Borç için varsayılan Satın Alma
     hareket_tarihi: new Date().toISOString().split('T')[0],
     aciklama: '',
     is_satis: false,
@@ -59,10 +60,92 @@ const CariHesapDetay = () => {
     miktar: ''
   });
 
+  const [alacakFormData, setAlacakFormData] = useState({
+    tutar: '',
+    odeme_tipi: 'Nakit',
+    hareket_tarihi: new Date().toISOString().split('T')[0],
+    aciklama: ''
+  });
+
   const [urunSepeti, setUrunSepeti] = useState([]);
   const [selectedUrun, setSelectedUrun] = useState(null);
   const [selectedMiktar, setSelectedMiktar] = useState('');
   const [selectedBirimFiyat, setSelectedBirimFiyat] = useState('');
+
+  // Filtre state'leri
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    startDate: '',
+    endDate: '',
+    hareket_tipi: '',
+    min_tutar: '',
+    max_tutar: '',
+    odeme_tipi: '',
+    aciklama: ''
+  });
+  const [filteredHareketler, setFilteredHareketler] = useState([]);
+
+  // Filtre fonksiyonları
+  const applyFilters = useCallback(() => {
+    let filtered = [...hareketler];
+
+    // Tarih filtresi
+    if (filters.startDate) {
+      filtered = filtered.filter(h => 
+        new Date(h.hareket_tarihi || h.tarih) >= new Date(filters.startDate)
+      );
+    }
+    if (filters.endDate) {
+      filtered = filtered.filter(h => 
+        new Date(h.hareket_tarihi || h.tarih) <= new Date(filters.endDate)
+      );
+    }
+
+    // Hareket tipi filtresi
+    if (filters.hareket_tipi) {
+      filtered = filtered.filter(h => h.hareket_tipi === filters.hareket_tipi);
+    }
+
+    // Tutar filtresi
+    if (filters.min_tutar) {
+      filtered = filtered.filter(h => h.tutar >= parseFloat(filters.min_tutar));
+    }
+    if (filters.max_tutar) {
+      filtered = filtered.filter(h => h.tutar <= parseFloat(filters.max_tutar));
+    }
+
+    // Ödeme tipi filtresi
+    if (filters.odeme_tipi) {
+      filtered = filtered.filter(h => h.odeme_tipi === filters.odeme_tipi);
+    }
+
+    // Açıklama filtresi
+    if (filters.aciklama.trim()) {
+      const searchTerm = filters.aciklama.toLowerCase().trim();
+      filtered = filtered.filter(h => 
+        (h.aciklama || '').toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredHareketler(filtered);
+  }, [hareketler, filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      startDate: '',
+      endDate: '',
+      hareket_tipi: '',
+      min_tutar: '',
+      max_tutar: '',
+      odeme_tipi: '',
+      aciklama: ''
+    });
+    setFilteredHareketler(hareketler);
+  };
+
+  const getActiveFilterCount = () => {
+    return Object.values(filters).filter(value => value && value.toString().trim()).length;
+  };
 
   useEffect(() => {
     if (id) {
@@ -71,6 +154,15 @@ const CariHesapDetay = () => {
       fetchUrunler();
     }
   }, [id]);
+
+  // Hareketler değiştiğinde filtreleri uygula
+  useEffect(() => {
+    if (hareketler.length > 0) {
+      applyFilters();
+    } else {
+      setFilteredHareketler([]);
+    }
+  }, [hareketler, filters, applyFilters]);
 
   const fetchHesapBilgi = async () => {
     try {
@@ -191,19 +283,19 @@ const CariHesapDetay = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleBorcSubmit = async () => {
     try {
       const payload = {
         cari_hesap_id: parseInt(id),
-        hareket_tipi: formData.hareket_tipi,
-        tutar: parseFloat(formData.tutar),
-        odeme_tipi: formData.odeme_tipi,
-        hareket_tarihi: new Date(formData.hareket_tarihi).toISOString(),
-        aciklama: formData.aciklama
+        hareket_tipi: 'Borç',
+        tutar: parseFloat(borcFormData.tutar),
+        odeme_tipi: 'Satın Alma',
+        hareket_tarihi: new Date(borcFormData.hareket_tarihi).toISOString(),
+        aciklama: borcFormData.aciklama
       };
 
       // Çoklu ürün sistemi için sepet kontrolü
-      if (formData.is_satis && urunSepeti.length > 0) {
+      if (borcFormData.is_satis && urunSepeti.length > 0) {
         payload.urun_kalemleri = urunSepeti.map(item => ({
           urun_id: item.urun_id,
           miktar: item.miktar,
@@ -211,17 +303,38 @@ const CariHesapDetay = () => {
         }));
       }
       // Geriye dönük uyumluluk için tek ürün sistemi
-      else if (formData.is_satis && formData.urun_id && formData.miktar) {
-        payload.urun_id = parseInt(formData.urun_id);
-        payload.miktar = parseFloat(formData.miktar);
+      else if (borcFormData.is_satis && borcFormData.urun_id && borcFormData.miktar) {
+        payload.urun_id = parseInt(borcFormData.urun_id);
+        payload.miktar = parseFloat(borcFormData.miktar);
       }
 
       await axios.post('http://localhost:8000/cari-hareket/', payload);
-      handleClose();
+      handleBorcClose();
       fetchHesapBilgi();
       fetchHareketler();
     } catch (error) {
-      console.error('Hareket eklenemedi:', error);
+      console.error('Borç hareketi eklenemedi:', error);
+      alert('Hata: ' + (error.response?.data?.detail || 'Bilinmeyen bir hata oluştu'));
+    }
+  };
+
+  const handleAlacakSubmit = async () => {
+    try {
+      const payload = {
+        cari_hesap_id: parseInt(id),
+        hareket_tipi: 'Alacak',
+        tutar: parseFloat(alacakFormData.tutar),
+        odeme_tipi: alacakFormData.odeme_tipi,
+        hareket_tarihi: new Date(alacakFormData.hareket_tarihi).toISOString(),
+        aciklama: alacakFormData.aciklama
+      };
+
+      await axios.post('http://localhost:8000/cari-hareket/', payload);
+      handleAlacakClose();
+      fetchHesapBilgi();
+      fetchHareketler();
+    } catch (error) {
+      console.error('Alacak hareketi eklenemedi:', error);
       alert('Hata: ' + (error.response?.data?.detail || 'Bilinmeyen bir hata oluştu'));
     }
   };
@@ -239,12 +352,10 @@ const CariHesapDetay = () => {
     }
   };
 
-  const handleClose = () => {
-    setOpen(false);
-    setFormData({
-      hareket_tipi: 'Borç',
+  const handleBorcClose = () => {
+    setOpenBorc(false);
+    setBorcFormData({
       tutar: '',
-      odeme_tipi: 'Satın Alma', // Borç için varsayılan Satın Alma
       hareket_tarihi: new Date().toISOString().split('T')[0],
       aciklama: '',
       is_satis: false,
@@ -257,6 +368,16 @@ const CariHesapDetay = () => {
     setSelectedUrun(null);
     setSelectedMiktar('');
     setSelectedBirimFiyat('');
+  };
+
+  const handleAlacakClose = () => {
+    setOpenAlacak(false);
+    setAlacakFormData({
+      tutar: '',
+      odeme_tipi: 'Nakit',
+      hareket_tarihi: new Date().toISOString().split('T')[0],
+      aciklama: ''
+    });
   };
 
   const formatTarih = (tarih) => {
@@ -326,12 +447,12 @@ const CariHesapDetay = () => {
 
   const updateToplamTutar = (sepet) => {
     const toplam = sepet.reduce((sum, item) => sum + item.toplam, 0);
-    setFormData({ ...formData, tutar: toplam.toString() });
+    setBorcFormData({ ...borcFormData, tutar: toplam.toString() });
   };
 
   const clearSepet = () => {
     setUrunSepeti([]);
-    setFormData({ ...formData, tutar: '' });
+    setBorcFormData({ ...borcFormData, tutar: '' });
   };
 
   if (!hesapBilgi) {
@@ -360,21 +481,15 @@ const CariHesapDetay = () => {
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography color="textSecondary" gutterBottom>
-                    Güncel Bakiye
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: getBakiyeColor(hesapBilgi.bakiye) }}>
-                    {formatTutar(hesapBilgi.bakiye)}
-                  </Typography>
-                </Box>
-                <Chip 
-                  label={hesapBilgi.tipi} 
-                  color={hesapBilgi.tipi === 'Müşteri' ? 'primary' : 'secondary'}
-                  variant="outlined"
-                />
-              </Box>
+              <Typography color="textSecondary" gutterBottom>
+                Güncel Bakiye
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: getBakiyeColor(hesapBilgi.bakiye) }}>
+                {formatTutar(hesapBilgi.bakiye)}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                Hesap Tipi: {hesapBilgi.tipi}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -434,23 +549,197 @@ const CariHesapDetay = () => {
 
       {/* Hareket Tablosu */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0d0f1c' }}>
-          Hareket Geçmişi
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpen(true)}
-          sx={{
-            bgcolor: '#607afb',
-            '&:hover': { bgcolor: '#5068e5' },
-            textTransform: 'none',
-            fontWeight: 'bold'
-          }}
-        >
-          Yeni Hareket Ekle
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0d0f1c' }}>
+            Hareket Geçmişi
+          </Typography>
+          <Badge badgeContent={getActiveFilterCount()} color="primary">
+            <Button
+              variant="outlined"
+              startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+              endIcon={<FilterList />}
+              onClick={() => setShowFilters(!showFilters)}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'bold',
+                color: '#607afb',
+                borderColor: '#607afb',
+                '&:hover': {
+                  bgcolor: '#607afb',
+                  color: 'white'
+                }
+              }}
+            >
+              Filtreler
+            </Button>
+          </Badge>
+          {getActiveFilterCount() > 0 && (
+            <Button
+              variant="text"
+              startIcon={<Clear />}
+              onClick={clearFilters}
+              sx={{
+                textTransform: 'none',
+                color: '#f44336',
+                '&:hover': { bgcolor: '#ffebee' }
+              }}
+            >
+              Temizle ({filteredHareketler.length}/{hareketler.length})
+            </Button>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<TrendingUp />}
+            onClick={() => setOpenBorc(true)}
+            sx={{
+              bgcolor: '#f44336',
+              '&:hover': { bgcolor: '#d32f2f' },
+              textTransform: 'none',
+              fontWeight: 'bold'
+            }}
+          >
+            Borç (Alım/Gider) Ekle
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<TrendingDown />}
+            onClick={() => setOpenAlacak(true)}
+            sx={{
+              bgcolor: '#4caf50',
+              '&:hover': { bgcolor: '#388e3c' },
+              textTransform: 'none',
+              fontWeight: 'bold'
+            }}
+          >
+            Alacak (Ödeme) Ekle
+          </Button>
+        </Box>
       </Box>
+
+      {/* Filtre Paneli */}
+      <Collapse in={showFilters}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#f8f9fc', border: '1px solid #ced2e9' }}>
+          <Grid container spacing={2}>
+            {/* Tarih Aralığı */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                📅 Tarih Aralığı
+              </Typography>
+              <TextField
+                label="Başlangıç"
+                type="date"
+                size="small"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                sx={{ mb: 1 }}
+              />
+              <TextField
+                label="Bitiş"
+                type="date"
+                size="small"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/* Hareket Tipi */}
+            <Grid item xs={12} sm={6} md={2}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                🔄 Hareket Tipi
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Tip Seçin</InputLabel>
+                <Select
+                  value={filters.hareket_tipi}
+                  onChange={(e) => setFilters({ ...filters, hareket_tipi: e.target.value })}
+                  label="Tip Seçin"
+                >
+                  <MenuItem value="">Hepsi</MenuItem>
+                  <MenuItem value="Borç">🔺 Borç</MenuItem>
+                  <MenuItem value="Alacak">🔻 Alacak</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Tutar Aralığı */}
+            <Grid item xs={12} sm={6} md={2}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                💰 Tutar Aralığı
+              </Typography>
+              <TextField
+                label="Min Tutar"
+                type="number"
+                size="small"
+                value={filters.min_tutar}
+                onChange={(e) => setFilters({ ...filters, min_tutar: e.target.value })}
+                fullWidth
+                inputProps={{ min: 0, step: 0.01 }}
+                sx={{ mb: 1 }}
+              />
+              <TextField
+                label="Max Tutar"
+                type="number"
+                size="small"
+                value={filters.max_tutar}
+                onChange={(e) => setFilters({ ...filters, max_tutar: e.target.value })}
+                fullWidth
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+            </Grid>
+
+            {/* Ödeme Tipi */}
+            <Grid item xs={12} sm={6} md={2}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                💳 Ödeme Tipi
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Ödeme Tipi</InputLabel>
+                <Select
+                  value={filters.odeme_tipi}
+                  onChange={(e) => setFilters({ ...filters, odeme_tipi: e.target.value })}
+                  label="Ödeme Tipi"
+                >
+                  <MenuItem value="">Hepsi</MenuItem>
+                  <MenuItem value="Nakit">💵 Nakit</MenuItem>
+                  <MenuItem value="Kart">💳 Kart</MenuItem>
+                  <MenuItem value="Transfer">🏦 Transfer</MenuItem>
+                  <MenuItem value="Yemek Çeki">🍽️ Yemek Çeki</MenuItem>
+                  <MenuItem value="Satın Alma">🛒 Satın Alma</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Açıklama Arama */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#0d0f1c' }}>
+                🔍 Açıklama Arama
+              </Typography>
+              <TextField
+                label="Açıklama ara..."
+                size="small"
+                value={filters.aciklama}
+                onChange={(e) => setFilters({ ...filters, aciklama: e.target.value })}
+                fullWidth
+                placeholder="Metin girin..."
+              />
+            </Grid>
+          </Grid>
+
+          {/* Filtre İstatistikleri */}
+          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #ced2e9' }}>
+            <Typography variant="body2" color="textSecondary">
+              📊 Toplam {hareketler.length} kayıttan {filteredHareketler.length} tanesi gösteriliyor
+              {getActiveFilterCount() > 0 && ` (${getActiveFilterCount()} filtre aktif)`}
+            </Typography>
+          </Box>
+        </Paper>
+      </Collapse>
 
       <TableContainer component={Paper} sx={{ border: '1px solid #ced2e9' }}>
         <Table>
@@ -465,7 +754,7 @@ const CariHesapDetay = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {hareketler.map((hareket) => (
+            {filteredHareketler.map((hareket) => (
               <TableRow key={hareket.id} sx={{ '&:hover': { bgcolor: '#f5f5f5' } }}>
                 <TableCell sx={{ color: '#47569e' }}>
                   {formatTarih(hareket.hareket_tarihi || hareket.tarih)}
@@ -482,7 +771,7 @@ const CariHesapDetay = () => {
                   color: hareket.hareket_tipi === 'Borç' ? 'error.main' : 'success.main',
                   fontWeight: 'bold'
                 }}>
-                  {hareket.hareket_tipi === 'Borç' ? '+' : '-'}{formatTutar(hareket.tutar)}
+                  {hareket.hareket_tipi === 'Borç' ? '-' : '+'}{formatTutar(hareket.tutar)}
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -507,120 +796,109 @@ const CariHesapDetay = () => {
                   </Tooltip>
                 </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                            ))}
+              {filteredHareketler.length === 0 && hareketler.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="body1" color="textSecondary">
+                      🔍 Filtre kriterlerinize uygun hareket bulunamadı
+                    </Typography>
+                    <Button 
+                      variant="text" 
+                      onClick={clearFilters}
+                      sx={{ mt: 1, color: '#607afb' }}
+                    >
+                      Filtreleri Temizle
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )}
+              {hareketler.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="body1" color="textSecondary">
+                      📝 Henüz hareket kaydı bulunmuyor
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-      {/* Hareket Ekleme Dialog */}
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Yeni Hareket Ekle</DialogTitle>
+      {/* Borç Ekleme Modal */}
+      <Dialog open={openBorc} onClose={handleBorcClose} maxWidth="md" fullWidth>
+        <DialogTitle>Borç (Alım/Gider) Ekle</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ pt: 2 }}>
+            {/* Ürün İşlemi Checkbox'ı */}
             <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>Hareket Tipi *</InputLabel>
-                <Select
-                  value={formData.hareket_tipi}
-                  onChange={(e) => {
-                    const newHareketTipi = e.target.value;
-                    setFormData({ 
-                      ...formData, 
-                      hareket_tipi: newHareketTipi,
-                      // Alacak seçildiğinde satış checkbox'ını temizle
-                      is_satis: newHareketTipi === 'Alacak' ? false : formData.is_satis,
-                      // Hareket tipine göre ödeme tipini otomatik ayarla
-                      odeme_tipi: newHareketTipi === 'Borç' ? 'Satın Alma' : 'Nakit'
-                    });
-                  }}
-                  label="Hareket Tipi *"
-                >
-                  <MenuItem value="Borç">
-                    Borç {hesapBilgi.tipi === 'Müşteri' ? '(Satış/Fatura)' : '(Alım/Gider)'}
-                  </MenuItem>
-                  <MenuItem value="Alacak">
-                    Alacak {hesapBilgi.tipi === 'Müşteri' ? '(Tahsilat)' : '(Ödeme)'}
-                  </MenuItem>
-                </Select>
-              </FormControl>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={borcFormData.is_satis}
+                    onChange={async (e) => {
+                      const isChecked = e.target.checked;
+                      setBorcFormData({ 
+                        ...borcFormData, 
+                        is_satis: isChecked,
+                        urun_id: isChecked ? borcFormData.urun_id : '',
+                        miktar: isChecked ? borcFormData.miktar : ''
+                      });
+                      
+                      if (isChecked) {
+                        await fetchUrunler();
+                      } else {
+                        clearSepet();
+                      }
+                    }}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography>
+                      {hesapBilgi.tipi === 'Müşteri' ? 
+                        '🛒 Bu bir satış işlemi (Stoktan düşülecek)' : 
+                        '📦 Bu bir alım işlemi (Stoğa eklenecek)'}
+                    </Typography>
+                  </Box>
+                }
+              />
             </Grid>
             
-            {/* Ürün İşlemi Checkbox'ı - Borç işlemleri için */}
-            {formData.hareket_tipi === 'Borç' && (
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.is_satis}
-                      onChange={async (e) => {
-                        const isChecked = e.target.checked;
-                        setFormData({ 
-                          ...formData, 
-                          is_satis: isChecked,
-                          // Checkbox kapatıldığında ürün seçimini temizle
-                          urun_id: isChecked ? formData.urun_id : '',
-                          miktar: isChecked ? formData.miktar : ''
-                        });
-                        
-                        // Checkbox işaretlendiğinde ürünleri çek
-                        if (isChecked) {
-                          await fetchUrunler();
-                        } else {
-                          // Checkbox kapatıldığında sepeti temizle
-                          clearSepet();
-                        }
-                      }}
-                      color="primary"
-                    />
-                  }
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography>
-                        {hesapBilgi.tipi === 'Müşteri' ? 
-                          '🛒 Bu bir satış işlemi (Stoktan düşülecek)' : 
-                          '📦 Bu bir alım işlemi (Stoğa eklenecek)'}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Grid>
-            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Tutar *"
                 type="number"
-                value={formData.tutar}
-                onChange={(e) => setFormData({ ...formData, tutar: e.target.value })}
+                value={borcFormData.tutar}
+                onChange={(e) => setBorcFormData({ ...borcFormData, tutar: e.target.value })}
                 fullWidth
                 required
                 inputProps={{ min: 0, step: 0.01 }}
-                // Eğer ürün satışı yapılıyorsa tutar readonly olsun
                 InputProps={{
-                  readOnly: formData.is_satis && urunSepeti.length > 0
+                  readOnly: borcFormData.is_satis && urunSepeti.length > 0
                 }}
-                helperText={formData.is_satis && urunSepeti.length > 0 ? 
+                helperText={borcFormData.is_satis && urunSepeti.length > 0 ? 
                   'Tutar otomatik hesaplanıyor' : 
                   'Manuel tutar girin'}
               />
             </Grid>
+            
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Ödeme Tipi *</InputLabel>
-                <Select
-                  value={formData.odeme_tipi}
-                  onChange={(e) => setFormData({ ...formData, odeme_tipi: e.target.value })}
-                  label="Ödeme Tipi *"
-                >
-                  <MenuItem value="Nakit">💵 Nakit</MenuItem>
-                  <MenuItem value="Kart">💳 Kredi/Banka Kartı</MenuItem>
-                  <MenuItem value="Transfer">🏦 Banka Havalesi</MenuItem>
-                  <MenuItem value="Yemek Çeki">🍽️ Yemek Çeki</MenuItem>
-                  <MenuItem value="Satın Alma">🛒 Satın Alma</MenuItem>
-                </Select>
-              </FormControl>
+              <TextField
+                label="İşlem Tarihi *"
+                type="date"
+                value={borcFormData.hareket_tarihi}
+                onChange={(e) => setBorcFormData({ ...borcFormData, hareket_tarihi: e.target.value })}
+                fullWidth
+                required
+                InputLabelProps={{ shrink: true }}
+              />
             </Grid>
+
             {/* Çoklu Ürün Seçimi - Sepet Sistemi */}
-            {formData.is_satis && (
+            {borcFormData.is_satis && (
               <>
                 <Grid item xs={12}>
                   <Divider sx={{ my: 2 }}>
@@ -750,7 +1028,7 @@ const CariHesapDetay = () => {
                       <Divider sx={{ my: 2 }} />
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Typography variant="h6" color="primary">
-                          💰 Toplam: {parseFloat(formData.tutar || 0).toLocaleString('tr-TR')} TL
+                          💰 Toplam: {parseFloat(borcFormData.tutar || 0).toLocaleString('tr-TR')} TL
                         </Typography>
                         <Button 
                           onClick={clearSepet} 
@@ -769,22 +1047,88 @@ const CariHesapDetay = () => {
             
             <Grid item xs={12}>
               <TextField
-                label="İşlem Tarihi *"
-                type="date"
-                value={formData.hareket_tarihi}
-                onChange={(e) => setFormData({ ...formData, hareket_tarihi: e.target.value })}
+                label="Açıklama"
+                value={borcFormData.aciklama}
+                onChange={(e) => setBorcFormData({ ...borcFormData, aciklama: e.target.value })}
+                multiline
+                rows={3}
                 fullWidth
-                required
-                InputLabelProps={{
-                  shrink: true,
-                }}
+                placeholder="Alım/gider ile ilgili detay bilgi..."
               />
             </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleBorcClose}>İptal</Button>
+          <Button 
+            onClick={handleBorcSubmit} 
+            variant="contained"
+            disabled={
+              !borcFormData.tutar || 
+              parseFloat(borcFormData.tutar) <= 0 || 
+              !borcFormData.hareket_tarihi ||
+              (borcFormData.is_satis && urunSepeti.length === 0)
+            }
+            sx={{ bgcolor: '#f44336', '&:hover': { bgcolor: '#d32f2f' } }}
+          >
+            {borcFormData.is_satis ? 
+              (hesapBilgi.tipi === 'Müşteri' ? 'Satış Yap & Kaydet' : 'Alım Yap & Kaydet') : 
+              'Borç Kaydet'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Alacak Ekleme Modal */}
+      <Dialog open={openAlacak} onClose={handleAlacakClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Alacak (Ödeme) Ekle</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ pt: 2 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Tutar *"
+                type="number"
+                value={alacakFormData.tutar}
+                onChange={(e) => setAlacakFormData({ ...alacakFormData, tutar: e.target.value })}
+                fullWidth
+                required
+                inputProps={{ min: 0, step: 0.01 }}
+                helperText="Ödeme/tahsilat tutarı"
+              />
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Ödeme Tipi *</InputLabel>
+                <Select
+                  value={alacakFormData.odeme_tipi}
+                  onChange={(e) => setAlacakFormData({ ...alacakFormData, odeme_tipi: e.target.value })}
+                  label="Ödeme Tipi *"
+                >
+                  <MenuItem value="Nakit">💵 Nakit</MenuItem>
+                  <MenuItem value="Kart">💳 Kredi/Banka Kartı</MenuItem>
+                  <MenuItem value="Transfer">🏦 Banka Havalesi</MenuItem>
+                  <MenuItem value="Yemek Çeki">🍽️ Yemek Çeki</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <TextField
+                label="İşlem Tarihi *"
+                type="date"
+                value={alacakFormData.hareket_tarihi}
+                onChange={(e) => setAlacakFormData({ ...alacakFormData, hareket_tarihi: e.target.value })}
+                fullWidth
+                required
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            
             <Grid item xs={12}>
               <TextField
                 label="Açıklama"
-                value={formData.aciklama}
-                onChange={(e) => setFormData({ ...formData, aciklama: e.target.value })}
+                value={alacakFormData.aciklama}
+                onChange={(e) => setAlacakFormData({ ...alacakFormData, aciklama: e.target.value })}
                 multiline
                 rows={3}
                 fullWidth
@@ -794,22 +1138,19 @@ const CariHesapDetay = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>İptal</Button>
+          <Button onClick={handleAlacakClose}>İptal</Button>
           <Button 
-            onClick={handleSubmit} 
+            onClick={handleAlacakSubmit} 
             variant="contained"
             disabled={
-              !formData.tutar || 
-              parseFloat(formData.tutar) <= 0 || 
-              !formData.hareket_tarihi ||
-              !formData.odeme_tipi ||
-              // Çoklu ürün sistemi için validasyon
-              (formData.is_satis && urunSepeti.length === 0)
+              !alacakFormData.tutar || 
+              parseFloat(alacakFormData.tutar) <= 0 || 
+              !alacakFormData.hareket_tarihi ||
+              !alacakFormData.odeme_tipi
             }
+            sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
           >
-            {formData.is_satis ? 
-              (hesapBilgi.tipi === 'Müşteri' ? 'Satış Yap & Kaydet' : 'Alım Yap & Kaydet') : 
-              'Kaydet'}
+            Alacak Kaydet
           </Button>
         </DialogActions>
       </Dialog>

@@ -39,7 +39,7 @@ const AdvancedDateFilter = ({
   // State management
   const [isAdvanced, setIsAdvanced] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
-    quickOptions: true,
+    quickOptions: false,
     customRange: false,
     comparison: false,
     savedRanges: false

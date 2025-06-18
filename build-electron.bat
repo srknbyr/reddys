@@ -10,12 +10,12 @@ echo Bağımlılıklar kuruluyor...
 npm install
 
 REM Backend bağımlılıklarını kur
-cd ..\backend
-if not exist "..\venv" (
+cd ..
+if not exist "venv" (
     echo Python virtual environment oluşturuluyor...
-    python -m venv ..\venv
+    python -m venv venv
 )
-..\venv\Scripts\pip.exe install -r requirements-electron.txt
+venv\Scripts\pip.exe install -r backend\requirements-electron.txt
 
 REM Frontend'e geri dön
 cd ..\frontend

@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Card, CardContent, Grid, Button, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, IconButton,
   Tooltip, Alert, Snackbar, Divider, List, ListItem, ListItemText,
-  ListItemIcon, Autocomplete
+  ListItemIcon, Autocomplete, Collapse, Badge
 } from '@mui/material';
 import {
   Add, Delete, AccountBalance, CreditCard, 
   LocalAtm, Restaurant, TrendingUp, TrendingDown,
-  Receipt, Payment, MonetizationOn, ShoppingCart, Home
+  Receipt, Payment, MonetizationOn, ShoppingCart, Home,
+  FilterList, Clear, ExpandMore, ExpandLess
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -48,11 +49,119 @@ const KasaTakibi = () => {
     tarih: new Date().toISOString().split('T')[0] // Bugünün tarihi varsayılan
   });
 
+  // Filtre state'leri
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    baslangic_tarihi: '',
+    bitis_tarihi: '',
+    hareket_tipi: '',
+    kategori: '',
+    alt_kategori_id: '',
+    odeme_tipi: '',
+    alt_odeme_tipi_id: '',
+    min_tutar: '',
+    max_tutar: '',
+    aciklama: ''
+  });
+  const [filteredHareketler, setFilteredHareketler] = useState([]);
+
+  // Filtre fonksiyonları
+  const applyFilters = useCallback(() => {
+    let filtered = [...hareketler];
+
+    // Alım kategorisindeki hareketleri gizle (her zaman uygula)
+    filtered = filtered.filter(h => h.kategori !== 'Alım');
+
+    // Tarih aralığı filtresi
+    if (filters.baslangic_tarihi) {
+      const baslangic = new Date(filters.baslangic_tarihi);
+      filtered = filtered.filter(h => new Date(h.tarih) >= baslangic);
+    }
+    if (filters.bitis_tarihi) {
+      const bitis = new Date(filters.bitis_tarihi);
+      bitis.setHours(23, 59, 59); // Günün sonuna kadar
+      filtered = filtered.filter(h => new Date(h.tarih) <= bitis);
+    }
+
+    // Hareket tipi filtresi
+    if (filters.hareket_tipi) {
+      filtered = filtered.filter(h => h.hareket_tipi === filters.hareket_tipi);
+    }
+
+    // Ana kategori filtresi
+    if (filters.kategori) {
+      filtered = filtered.filter(h => h.kategori === filters.kategori);
+    }
+
+    // Alt kategori filtresi
+    if (filters.alt_kategori_id) {
+      filtered = filtered.filter(h => h.alt_kategori_id == filters.alt_kategori_id);
+    }
+
+    // Ödeme tipi filtresi
+    if (filters.odeme_tipi) {
+      filtered = filtered.filter(h => h.odeme_tipi === filters.odeme_tipi);
+    }
+
+    // Alt ödeme tipi filtresi
+    if (filters.alt_odeme_tipi_id) {
+      filtered = filtered.filter(h => h.alt_odeme_tipi_id == filters.alt_odeme_tipi_id);
+    }
+
+    // Tutar aralığı filtresi
+    if (filters.min_tutar) {
+      filtered = filtered.filter(h => h.tutar >= parseFloat(filters.min_tutar));
+    }
+    if (filters.max_tutar) {
+      filtered = filtered.filter(h => h.tutar <= parseFloat(filters.max_tutar));
+    }
+
+    // Açıklama filtresi
+    if (filters.aciklama.trim()) {
+      const searchTerm = filters.aciklama.toLowerCase().trim();
+      filtered = filtered.filter(h => 
+        (h.aciklama || '').toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredHareketler(filtered);
+  }, [hareketler, filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      baslangic_tarihi: '',
+      bitis_tarihi: '',
+      hareket_tipi: '',
+      kategori: '',
+      alt_kategori_id: '',
+      odeme_tipi: '',
+      alt_odeme_tipi_id: '',
+      min_tutar: '',
+      max_tutar: '',
+      aciklama: ''
+    });
+    // Temizlenmiş halinde de Alım kategorisini gizle
+    setFilteredHareketler(hareketler.filter(h => h.kategori !== 'Alım'));
+  };
+
+  const getActiveFilterCount = () => {
+    return Object.values(filters).filter(value => value && value.toString().trim()).length;
+  };
+
   // Sayfa yüklendiğinde verileri çek
   useEffect(() => {
     console.log('🚀 KasaTakibi component yüklendi, fetchAll çağrılıyor');
     fetchAll();
   }, []);
+
+  // Filtreler değiştiğinde uygula
+  useEffect(() => {
+    if (hareketler.length > 0) {
+      applyFilters();
+    } else {
+      setFilteredHareketler([]);
+    }
+  }, [hareketler, filters, applyFilters]);
 
   const fetchAll = async () => {
     await Promise.all([
@@ -721,7 +830,7 @@ const KasaTakibi = () => {
                 : 'Son günsonu alındıktan sonraki güncel hareketler'}
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Tarih Filtresi</InputLabel>
               <Select
@@ -746,6 +855,33 @@ const KasaTakibi = () => {
               </Select>
             </FormControl>
             <Button
+              variant="outlined"
+              startIcon={<FilterList />}
+              onClick={() => setShowFilters(!showFilters)}
+              sx={{
+                color: '#607afb',
+                borderColor: '#607afb',
+                '&:hover': { bgcolor: '#607afb', color: 'white' },
+                textTransform: 'none',
+                fontWeight: 'bold'
+              }}
+            >
+              {showFilters ? (
+                <>
+                  <ExpandLess sx={{ ml: 1 }} />
+                  Filtreleri Gizle
+                </>
+              ) : (
+                <>
+                  <ExpandMore sx={{ ml: 1 }} />
+                  {getActiveFilterCount() > 0 && (
+                    <Badge badgeContent={getActiveFilterCount()} color="error" sx={{ ml: 1 }} />
+                  )}
+                  Filtreler
+                </>
+              )}
+            </Button>
+            <Button
               variant="contained"
               startIcon={<Add />}
               onClick={() => setOpen(true)}
@@ -760,6 +896,170 @@ const KasaTakibi = () => {
             </Button>
           </Box>
         </Box>
+
+        {/* Filtre Paneli */}
+        <Collapse in={showFilters}>
+          <Card sx={{ mb: 3, border: '1px solid #ced2e9', bgcolor: '#fafbfe' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#0d0f1c' }}>
+                  🔍 Filtreler
+                </Typography>
+                <Button
+                  size="small"
+                  startIcon={<Clear />}
+                  onClick={clearFilters}
+                  sx={{ color: '#607afb', textTransform: 'none' }}
+                >
+                  Temizle
+                </Button>
+              </Box>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Başlangıç Tarihi"
+                    type="date"
+                    value={filters.baslangic_tarihi}
+                    onChange={(e) => setFilters({...filters, baslangic_tarihi: e.target.value})}
+                    variant="outlined"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Bitiş Tarihi"
+                    type="date"
+                    value={filters.bitis_tarihi}
+                    onChange={(e) => setFilters({...filters, bitis_tarihi: e.target.value})}
+                    variant="outlined"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Hareket Tipi</InputLabel>
+                    <Select
+                      value={filters.hareket_tipi}
+                      onChange={(e) => setFilters({...filters, hareket_tipi: e.target.value})}
+                      label="Hareket Tipi"
+                    >
+                      <MenuItem value="">Tümü</MenuItem>
+                      <MenuItem value="Giriş">📈 Giriş</MenuItem>
+                      <MenuItem value="Çıkış">📉 Çıkış</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Ana Kategori</InputLabel>
+                    <Select
+                      value={filters.kategori}
+                      onChange={(e) => setFilters({...filters, kategori: e.target.value})}
+                      label="Ana Kategori"
+                    >
+                      <MenuItem value="">Tümü</MenuItem>
+                      <MenuItem value="Satış">🛒 Satış</MenuItem>
+                      <MenuItem value="Gider">💸 Gider</MenuItem>
+                      <MenuItem value="Tahsilat">💰 Tahsilat</MenuItem>
+                      <MenuItem value="Ödeme">💳 Ödeme</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Alt Kategori</InputLabel>
+                    <Select
+                      value={filters.alt_kategori_id}
+                      onChange={(e) => setFilters({...filters, alt_kategori_id: e.target.value})}
+                      label="Alt Kategori"
+                    >
+                      <MenuItem value="">Tümü</MenuItem>
+                      {giderKategorileri.map(kategori => (
+                        <MenuItem key={kategori.id} value={kategori.id}>
+                          {kategori.ad}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Ödeme Tipi</InputLabel>
+                    <Select
+                      value={filters.odeme_tipi}
+                      onChange={(e) => setFilters({...filters, odeme_tipi: e.target.value})}
+                      label="Ödeme Tipi"
+                    >
+                      <MenuItem value="">Tümü</MenuItem>
+                      <MenuItem value="Nakit">💵 Nakit</MenuItem>
+                      <MenuItem value="Kart">💳 Kart</MenuItem>
+                      <MenuItem value="Transfer">🏦 Transfer</MenuItem>
+                      <MenuItem value="Yemek Çeki">🍽️ Yemek Çeki</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Min Tutar"
+                    type="number"
+                    value={filters.min_tutar}
+                    onChange={(e) => setFilters({...filters, min_tutar: e.target.value})}
+                    variant="outlined"
+                    size="small"
+                    placeholder="0"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Max Tutar"
+                    type="number"
+                    value={filters.max_tutar}
+                    onChange={(e) => setFilters({...filters, max_tutar: e.target.value})}
+                    variant="outlined"
+                    size="small"
+                    placeholder="10000"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Açıklama"
+                    value={filters.aciklama}
+                    onChange={(e) => setFilters({...filters, aciklama: e.target.value})}
+                    variant="outlined"
+                    size="small"
+                    placeholder="Açıklama ile ara..."
+                  />
+                </Grid>
+              </Grid>
+              
+              {/* Filtre İstatistikleri */}
+              {getActiveFilterCount() > 0 && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#e8f4fd', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#0d0f1c' }}>
+                    📊 <strong>{filteredHareketler.length}</strong> hareket gösteriliyor 
+                    (Toplam: {hareketler.length})
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Collapse>
       </Box>
 
       <TableContainer component={Paper} sx={{ border: '1px solid #ced2e9' }}>
@@ -776,7 +1076,19 @@ const KasaTakibi = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {hareketler.map((hareket) => (
+            {filteredHareketler.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography sx={{ color: '#47569e' }}>
+                    {getActiveFilterCount() > 0 
+                      ? '🔍 Filtre kriterlerinize uygun hareket bulunamadı.'
+                      : '💰 Henüz kasa hareketi eklenmemiş.'
+                    }
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredHareketler.map((hareket) => (
               <TableRow key={hareket.id} sx={{ '&:hover': { bgcolor: '#f5f5f5' } }}>
                 <TableCell sx={{ color: '#47569e' }}>
                   {formatTarih(hareket.tarih)}
@@ -841,18 +1153,21 @@ const KasaTakibi = () => {
                   {hareket.aciklama || '-'}
                 </TableCell>
                 <TableCell>
-                  <Tooltip title="Sil">
-                    <IconButton 
-                      onClick={() => handleDelete(hareket.id)} 
-                      size="small" 
-                      color="error"
-                    >
-                      <Delete />
-                    </IconButton>
-                  </Tooltip>
+                  {hareket.kategori !== 'Ödeme' && (
+                    <Tooltip title="Sil">
+                      <IconButton 
+                        onClick={() => handleDelete(hareket.id)} 
+                        size="small" 
+                        color="error"
+                      >
+                        <Delete />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>

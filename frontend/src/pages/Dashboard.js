@@ -33,7 +33,6 @@ import {
   MonetizationOn,
   Assessment,
   Refresh,
-  Notifications,
   Schedule
 } from '@mui/icons-material';
 import {
@@ -69,7 +68,6 @@ const Dashboard = () => {
     bekleyen_odemeler: 0
   });
   const [chartData, setChartData] = useState([]);
-  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -115,35 +113,7 @@ const Dashboard = () => {
       // Gerçek grafik verisi çek (son 7 günün performansı)
       await fetchChartData();
 
-      // Bildirimleri oluştur
-      const notifications = [
-        {
-          id: 1,
-          title: 'Yüksek Bakiyeli Müşteri',
-          message: cariHesaplar.filter(h => h.bakiye > 5000).length > 0 
-            ? `${cariHesaplar.filter(h => h.bakiye > 5000).length} müşterinin bakiyesi 5.000₺ üzeri`
-            : 'Yüksek bakiyeli müşteri bulunmuyor',
-          type: 'info',
-          time: '5 dk önce'
-        },
-        {
-          id: 2,
-          title: 'Negatif Bakiye Uyarısı',
-          message: cariHesaplar.filter(h => h.bakiye < 0).length > 0
-            ? `${cariHesaplar.filter(h => h.bakiye < 0).length} hesapta negatif bakiye`
-            : 'Negatif bakiye bulunmuyor',
-          type: cariHesaplar.filter(h => h.bakiye < 0).length > 0 ? 'warning' : 'success',
-          time: '10 dk önce'
-        },
-        {
-          id: 3,
-          title: 'Güncel Durum',
-          message: `Toplam ${cariHesaplar.length} cari hesap aktif`,
-          type: 'success',
-          time: '15 dk önce'
-        }
-      ];
-      setNotifications(notifications);
+
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Dashboard verileri yüklenemedi:', error);
@@ -413,17 +383,16 @@ const Dashboard = () => {
 
       </Grid>
 
-      {/* Ana İçerik - 3 Sütun Layout */}
+      {/* Ana İçerik - Tek Sütun Layout */}
       <Grid container spacing={3}>
-        {/* Sol Sütun - Grafikler */}
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12}>
           {/* Performans Grafiği */}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" gutterBottom>
               📈 Son 7 Günün Performansı
             </Typography>
             {chartData.length > 0 && (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={350}>
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorSatis" x1="0" y1="0" x2="0" y2="1">
@@ -462,16 +431,14 @@ const Dashboard = () => {
             )}
           </Paper>
 
-
-
           {/* Hızlı İşlemler */}
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>
               🚀 Hızlı İşlemler
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
               {quickActions.map((action, index) => (
-                <Grid item xs={12} sm={6} md={4} key={index}>
+                <Grid item xs={12} sm={6} md={3} key={index}>
                   <Card 
                     sx={{ 
                       height: '100%', 
@@ -510,7 +477,7 @@ const Dashboard = () => {
                   </Card>
                 </Grid>
               ))}
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} md={3}>
                 <Card 
                   sx={{ 
                     height: '100%', 
@@ -550,119 +517,6 @@ const Dashboard = () => {
                 </Card>
               </Grid>
             </Grid>
-          </Paper>
-        </Grid>
-
-        {/* Sağ Sütun - Bildirimler ve Aktiviteler */}
-        <Grid item xs={12} lg={4}>
-          {/* Canlı Bildirimler */}
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">
-                🔔 Canlı Bildirimler
-              </Typography>
-              <Chip size="small" label={notifications.length} color="primary" />
-            </Box>
-            <List>
-              {notifications.map((notification, index) => (
-                <React.Fragment key={notification.id}>
-                  <ListItem sx={{ px: 0 }}>
-                    <Avatar 
-                      sx={{ 
-                        mr: 2, 
-                        bgcolor: notification.type === 'warning' ? 'warning.main' : 
-                                notification.type === 'success' ? 'success.main' : 'info.main',
-                        width: 32, 
-                        height: 32 
-                      }}
-                    >
-                      <Notifications fontSize="small" />
-                    </Avatar>
-                    <ListItemText
-                      primary={
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          {notification.title}
-                        </Typography>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            {notification.message}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {notification.time}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                  {index < notifications.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-          </Paper>
-
-          {/* Son Aktiviteler */}
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              📋 Son Aktiviteler
-            </Typography>
-            <List>
-              {stats.son_hareketler.slice(0, 5).map((hesap, index) => (
-                <React.Fragment key={hesap.id}>
-                  <ListItem 
-                    button 
-                    onClick={() => navigate(`/cari-hesap/${hesap.id}`)}
-                    sx={{
-                      '&:hover': { bgcolor: '#f5f5f5' },
-                      cursor: 'pointer',
-                      px: 0
-                    }}
-                  >
-                    <Avatar 
-                      sx={{ 
-                        mr: 2,
-                        bgcolor: hesap.tipi === 'Müşteri' ? 'primary.main' : 'secondary.main',
-                        width: 32,
-                        height: 32
-                      }}
-                    >
-                      {hesap.tipi === 'Müşteri' ? <Person fontSize="small" /> : <Business fontSize="small" />}
-                    </Avatar>
-                    <ListItemText
-                      primary={hesap.hesap_adi}
-                      secondary={
-                        <Box>
-                          <Typography 
-                            variant="body2" 
-                            color={getBakiyeColor(hesap.bakiye)}
-                            fontWeight="bold"
-                          >
-                            {formatTutar(hesap.bakiye)}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {formatTarih(hesap.son_hareket_tarihi)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <Chip 
-                      size="small" 
-                      label={hesap.tipi}
-                      color={hesap.tipi === 'Müşteri' ? 'primary' : 'secondary'}
-                    />
-                  </ListItem>
-                  {index < stats.son_hareketler.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-            {stats.son_hareketler.length === 0 && (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography color="textSecondary">
-                  Henüz hareket bulunmuyor
-                </Typography>
-              </Box>
-            )}
           </Paper>
         </Grid>
       </Grid>

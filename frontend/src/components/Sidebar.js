@@ -17,7 +17,7 @@ const Sidebar = () => {
   return (
     <Box sx={{ width: 280, bgcolor: '#f8f9fc', height: '100vh', p: 2 }}>
       <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold' }}>
-        Reddys Restoran
+        Reddys Cafe Takip Yazılımı
       </Typography>
       <List>
         {menuItems.map((item) => (

@@ -12,9 +12,16 @@ function startBackend() {
     ? path.join(__dirname, '../../backend') 
     : path.join(process.resourcesPath, 'backend');
   
-  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  // Virtual environment'in Python'ını kullan
+  const venvPath = isDev 
+    ? path.join(__dirname, '../../venv') 
+    : path.join(process.resourcesPath, 'venv');
   
-  backendProcess = spawn(pythonCmd, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
+  const pythonCmd = process.platform === 'win32' 
+    ? path.join(venvPath, 'Scripts', 'python.exe')
+    : path.join(venvPath, 'bin', 'python');
+  
+  backendProcess = spawn(pythonCmd, ['-m', 'uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000'], {
     cwd: backendPath,
     stdio: 'pipe'
   });
